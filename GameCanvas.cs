@@ -138,6 +138,8 @@ public class GameCanvas : Control
 
         // Everything inside this block is drawn in world coordinates (0..640, 0..360)
         using (context.PushTransform(transform))
+        // Clip: anything outside the game world (like ships entering) is hidden in the black bars
+        using (context.PushClip(new Rect(0, 0, GameWorld.Width, GameWorld.Height)))
         {
             context.DrawImage(_background, new Rect(0, 0, GameWorld.Width, GameWorld.Height));
             DrawShips(context);
