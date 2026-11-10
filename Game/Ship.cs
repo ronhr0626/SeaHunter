@@ -36,8 +36,13 @@ public class Ship
     public int Points { get; }
     public int Health { get; private set; }
 
+    // Depth charges: seconds between drops, 0 = unarmed
+    public double DropInterval { get; }
+    public double DropTimer { get; set; }
+
     public bool MovingRight => Speed > 0;
     public bool IsOffScreen => MovingRight ? X > GameWorld.Width : X + Width < 0;
+    public bool IsOnScreen => X > 0 && X + Width < GameWorld.Width;
 
     public Ship(ShipType type, bool movingRight)
     {
@@ -52,14 +57,17 @@ public class Ship
             case ShipType.PatrolBoat:
                 Lane = Lane.Far;
                 baseWidth = 50; baseHeight = 14; baseSpeed = 80; basePoints = 150; Health = 1;
+                DropInterval = 3.0;
                 break;
             case ShipType.Freighter:
                 Lane = Lane.Middle;
                 baseWidth = 90; baseHeight = 22; baseSpeed = 45; basePoints = 100; Health = 1;
+                DropInterval = 0; // Cargo ship, unarmed
                 break;
             default: // Battleship
                 Lane = Lane.Near;
                 baseWidth = 120; baseHeight = 28; baseSpeed = 30; basePoints = 50; Health = 2;
+                DropInterval = 2.0;
                 break;
         }
 
@@ -81,6 +89,9 @@ public class Ship
 
         // Start just outside the screen on the side it comes from
         X = movingRight ? -Width : GameWorld.Width;
+
+        // First drop comes after one full interval
+        DropTimer = DropInterval;
     }
 
     public void Update(double dt) => X += Speed * dt;

@@ -29,4 +29,5 @@ public class InputState
 
     // One press = one shot, holding the key does not auto-fire
     public bool Fire => _pressed.Contains(PhysicalKey.Space);
+    public bool Restart => _pressed.Contains(PhysicalKey.R);
 }

@@ -18,13 +18,16 @@ namespace SeaHunter;
 public class GameCanvas : Control
 {
     private static readonly IBrush TorpedoBrush = new SolidColorBrush(Color.Parse("#D8DEE9"));
+    private static readonly IBrush ChargeBrush = new SolidColorBrush(Color.Parse("#1C1F26"));
+    private static readonly IBrush ChargeBandBrush = new SolidColorBrush(Color.Parse("#E0A030"));
     private static readonly IBrush AmmoFullBrush = new SolidColorBrush(Color.Parse("#FFD34D"));
     private static readonly IBrush AmmoEmptyBrush = new SolidColorBrush(Color.Parse("#40FFFFFF"));
     private static readonly IBrush HudBackBrush = new SolidColorBrush(Color.Parse("#60000000"));
+    private static readonly IBrush GameOverBrush = new SolidColorBrush(Color.Parse("#AA000000"));
 
     private static readonly Typeface HudFont = new("Consolas", FontStyle.Normal, FontWeight.Bold);
 
-    private readonly GameWorld _world = new();
+    private GameWorld _world = new(); // Not readonly: replaced on restart
     private readonly InputState _input = new();
     private readonly Bitmap _background;
     private readonly Bitmap _subSprite;
@@ -90,6 +93,10 @@ public class GameCanvas : Control
         _clock.Restart();
         dt = Math.Min(dt, 0.05); // Avoid huge jumps if the window freezes
 
+        // Restart: just throw away the old world and make a new one
+        if (_world.IsGameOver && _input.Restart)
+            _world = new GameWorld();
+
         _world.Update(dt, _input);
         _input.EndFrame(); // Forget one-shot presses so they only count once
 
@@ -113,10 +120,14 @@ public class GameCanvas : Control
         {
             context.DrawImage(_background, new Rect(0, 0, GameWorld.Width, GameWorld.Height));
             DrawShips(context);
+            DrawDepthCharges(context);
             DrawTorpedoes(context);
+            DrawSubmarine(context);
             DrawExplosions(context);
-            DrawSubmarine(context, _world.Player);
             DrawHud(context);
+
+            if (_world.IsGameOver)
+                DrawGameOver(context);
         }
     }
 
@@ -161,8 +172,29 @@ public class GameCanvas : Control
         }
     }
 
-    private void DrawSubmarine(DrawingContext context, Submarine sub) =>
+    private void DrawSubmarine(DrawingContext context)
+    {
+        if (_world.IsGameOver) return;
+
+        // Blink while invulnerable: skip every other 0.1 second
+        if (_world.IsInvulnerable && (int)(_world.InvulnerableTimeLeft * 10) % 2 == 0)
+            return;
+
+        var sub = _world.Player;
         DrawSprite(context, _subSprite, sub.X, sub.Y, sub.Width, sub.Height, sub.FacingRight);
+    }
+
+    // Small dark barrels with a yellow band
+    private void DrawDepthCharges(DrawingContext context)
+    {
+        foreach (var c in _world.DepthCharges)
+        {
+            var body = new Rect(c.X, c.Y, DepthCharge.Size, DepthCharge.Size);
+            context.DrawRectangle(ChargeBrush, null, body, 1.5, 1.5);
+            context.FillRectangle(ChargeBandBrush,
+                new Rect(c.X, c.Y + DepthCharge.Size * 0.4, DepthCharge.Size, 1.2));
+        }
+    }
 
     private void DrawTorpedoes(DrawingContext context)
     {
@@ -204,6 +236,7 @@ public class GameCanvas : Control
     {
         DrawAmmo(context);
         DrawText(context, $"SCORE {_world.Score:D6}", 10, 8, 14);
+        DrawText(context, $"LIVES {_world.Lives}", GameWorld.Width - 10, 8, 14, TextAlignment.Right);
     }
 
     // Torpedo ammo at the top center, with a reload bar when empty
@@ -236,15 +269,34 @@ public class GameCanvas : Control
         }
     }
 
-    // Text with a dark shadow so it's readable on any background
-    private static void DrawText(DrawingContext context, string text, double x, double y, double size)
+    private void DrawGameOver(DrawingContext context)
     {
-        var shadow = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            HudFont, size, Brushes.Black);
-        var main = new FormattedText(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-            HudFont, size, Brushes.White);
+        context.FillRectangle(GameOverBrush, new Rect(0, 0, GameWorld.Width, GameWorld.Height));
 
-        context.DrawText(shadow, new Point(x + 1, y + 1));
-        context.DrawText(main, new Point(x, y));
+        double centerX = GameWorld.Width / 2;
+        DrawText(context, "GAME OVER", centerX, 140, 36, TextAlignment.Center);
+        DrawText(context, $"SCORE {_world.Score}", centerX, 190, 18, TextAlignment.Center);
+        DrawText(context, "Press R to restart", centerX, 225, 12, TextAlignment.Center);
+    }
+
+    private static FormattedText MakeText(string text, double size, IBrush brush) =>
+        new(text, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, HudFont, size, brush);
+
+    // Text with a dark shadow. x is the left edge, center or right edge depending on align.
+    private static void DrawText(DrawingContext context, string text, double x, double y, double size,
+        TextAlignment align = TextAlignment.Left)
+    {
+        var main = MakeText(text, size, Brushes.White);
+        var shadow = MakeText(text, size, Brushes.Black);
+
+        double drawX = align switch
+        {
+            TextAlignment.Center => x - main.Width / 2,
+            TextAlignment.Right => x - main.Width,
+            _ => x
+        };
+
+        context.DrawText(shadow, new Point(drawX + 1, y + 1));
+        context.DrawText(main, new Point(drawX, y));
     }
 }
