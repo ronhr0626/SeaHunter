@@ -5,7 +5,143 @@
         Title="Sea Hunter"
         Width="1280" Height="720"
         WindowStartupLocation="CenterScreen"
-        Background="Black">
+        Background="Black"
+        FontFamily="Consolas">
 
-    <local:GameCanvas/>
+    <Window.Styles>
+        <Style Selector="TextBlock.title">
+            <Setter Property="FontSize" Value="32"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#FFD34D"/>
+        </Style>
+        <Style Selector="TextBlock.heading">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="#8FB8DE"/>
+            <Setter Property="Margin" Value="0,6,0,2"/>
+        </Style>
+        <Style Selector="TextBlock.body">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="#DDDDDD"/>
+        </Style>
+        <Style Selector="TextBlock.key">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style Selector="TextBlock.score">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+
+        <Style Selector="Button">
+            <Setter Property="Background" Value="#FFD34D"/>
+            <Setter Property="Foreground" Value="#10202E"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="18,6"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#FFE07A"/>
+            <Setter Property="Foreground" Value="#10202E"/>
+        </Style>
+        <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="#E0B830"/>
+            <Setter Property="Foreground" Value="#10202E"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <!-- The game itself, always running underneath -->
+        <local:GameCanvas x:Name="Game"/>
+
+        <!-- ===== START SCREEN ===== -->
+        <Border x:Name="StartScreen" Background="#CC00101C">
+            <!-- Designed at 640x360 and scaled like the game -->
+            <Viewbox Stretch="Uniform">
+                <Grid Width="640" Height="360" ColumnDefinitions="*,170" Margin="0">
+
+                    <!-- Left: title, story, controls, ships -->
+                    <StackPanel Margin="30,24,10,10" Spacing="2">
+                        <TextBlock Classes="title" Text="SEA HUNTER"/>
+                        <TextBlock Classes="body" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="You command a submarine. Sink as many ships as you can before their depth charges sink you."/>
+
+                        <TextBlock Classes="heading" Text="CONTROLS"/>
+                        <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Classes="key" Text="A D / ← →"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="body" Text="Move left and right"/>
+                            <TextBlock Grid.Row="1" Classes="key" Text="W S / ↑ ↓"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="body" Text="Dive and rise"/>
+                            <TextBlock Grid.Row="2" Classes="key" Text="SPACE"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="body" Text="Fire torpedo (5, then reload)"/>
+                        </Grid>
+
+                        <TextBlock Classes="heading" Text="TARGETS"/>
+                        <Grid ColumnDefinitions="90,40,*" RowDefinitions="Auto,Auto,Auto">
+                            <TextBlock Grid.Row="0" Classes="key" Text="PATROL BOAT"/>
+                            <TextBlock Grid.Row="0" Grid.Column="1" Classes="key" Text="450"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Classes="body" Text="Far away, fast, drops charges"/>
+                            <TextBlock Grid.Row="1" Classes="key" Text="FREIGHTER"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Classes="key" Text="200"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Classes="body" Text="Unarmed"/>
+                            <TextBlock Grid.Row="2" Classes="key" Text="BATTLESHIP"/>
+                            <TextBlock Grid.Row="2" Grid.Column="1" Classes="key" Text="50"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Classes="body" Text="Close, takes 2 hits, drops charges"/>
+                        </Grid>
+
+                        <TextBlock Classes="body" Margin="0,8,0,0"
+                                   Text="3 lives. Every 1000 points: new level, more ships, more bombs."/>
+
+                        <Button Content="START" Click="OnStartClick" IsDefault="True"
+                                HorizontalAlignment="Left" Margin="0,14,0,0"/>
+                    </StackPanel>
+
+                    <!-- Right: high scores -->
+                    <StackPanel Grid.Column="1" Margin="0,30,20,10" Spacing="1">
+                        <TextBlock Classes="heading" Text="HIGH SCORES"/>
+                        <ItemsControl x:Name="StartHighScoreList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Classes="score" Text="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </Viewbox>
+        </Border>
+
+        <!-- ===== GAME OVER SCREEN ===== -->
+        <Border x:Name="GameOverScreen" Background="#CC00101C" IsVisible="False">
+            <Viewbox Stretch="Uniform">
+                <Grid Width="640" Height="360">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="4">
+                        <TextBlock Classes="title" Text="GAME OVER" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="FinalScoreText" FontSize="16" Foreground="White"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="NewHighScoreText" Text="NEW HIGH SCORE!" FontSize="12"
+                                   FontWeight="Bold" Foreground="#FFD34D" HorizontalAlignment="Center"
+                                   IsVisible="False"/>
+
+                        <TextBlock Classes="heading" Text="HIGH SCORES" HorizontalAlignment="Center"/>
+                        <ItemsControl x:Name="GameOverHighScoreList" HorizontalAlignment="Center">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Classes="score" Text="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10"
+                                    HorizontalAlignment="Center" Margin="0,10,0,0">
+                            <Button Content="PLAY AGAIN" Click="OnPlayAgainClick" IsDefault="True"/>
+                            <Button Content="MENU" Click="OnMenuClick"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Viewbox>
+        </Border>
+    </Grid>
 </Window>

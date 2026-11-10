@@ -14,7 +14,7 @@ using SeaHunter.Game;
 
 namespace SeaHunter;
 
-// Draws the game and runs the game loop
+// Draws the game and runs the game loop. Menus are handled by MainWindow.
 public class GameCanvas : Control
 {
     private static readonly IBrush TorpedoBrush = new SolidColorBrush(Color.Parse("#D8DEE9"));
@@ -23,11 +23,10 @@ public class GameCanvas : Control
     private static readonly IBrush AmmoFullBrush = new SolidColorBrush(Color.Parse("#FFD34D"));
     private static readonly IBrush AmmoEmptyBrush = new SolidColorBrush(Color.Parse("#40FFFFFF"));
     private static readonly IBrush HudBackBrush = new SolidColorBrush(Color.Parse("#60000000"));
-    private static readonly IBrush GameOverBrush = new SolidColorBrush(Color.Parse("#AA000000"));
 
     private static readonly Typeface HudFont = new("Consolas", FontStyle.Normal, FontWeight.Bold);
 
-    private GameWorld _world = new(); // Not readonly: replaced on restart
+    private GameWorld _world = new(); // Replaced every time a new game starts
     private readonly InputState _input = new();
     private readonly Bitmap _background;
     private readonly Bitmap _subSprite;
@@ -37,6 +36,12 @@ public class GameCanvas : Control
     private readonly DispatcherTimer _timer;
     private readonly Stopwatch _clock = new();
     private TopLevel? _topLevel;
+
+    // True while a game is being played (not in menus)
+    public bool IsRunning { get; private set; }
+
+    // Raised once when the player loses their last life. The int is the final score.
+    public event Action<int>? GameOver;
 
     public GameCanvas()
     {
@@ -56,6 +61,12 @@ public class GameCanvas : Control
 
     private static Bitmap LoadImage(string fileName) =>
         new(AssetLoader.Open(new Uri($"avares://SeaHunter/Assets/{fileName}")));
+
+    public void StartNewGame()
+    {
+        _world = new GameWorld();
+        IsRunning = true;
+    }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
@@ -80,10 +91,14 @@ public class GameCanvas : Control
 
     private void HandleKeyDown(object? sender, KeyEventArgs e)
     {
+        // In menus, let keys reach the buttons (Enter, Tab, Space)
+        if (!IsRunning) return;
+
         _input.Press(e.PhysicalKey);
-        e.Handled = true; // Stop Space etc. from doing anything else in the window
+        e.Handled = true; // Stop Space etc. from clicking hidden buttons
     }
 
+    // Always track releases, so no key gets "stuck" when switching screens
     private void HandleKeyUp(object? sender, KeyEventArgs e) => _input.Release(e.PhysicalKey);
 
     private void GameLoop()
@@ -93,12 +108,18 @@ public class GameCanvas : Control
         _clock.Restart();
         dt = Math.Min(dt, 0.05); // Avoid huge jumps if the window freezes
 
-        // Restart: just throw away the old world and make a new one
-        if (_world.IsGameOver && _input.Restart)
-            _world = new GameWorld();
+        // Update while playing, and after game over so the last explosions finish
+        if (IsRunning || _world.IsGameOver)
+            _world.Update(dt, _input);
 
-        _world.Update(dt, _input);
         _input.EndFrame(); // Forget one-shot presses so they only count once
+
+        // Tell the window exactly once that the game just ended
+        if (IsRunning && _world.IsGameOver)
+        {
+            IsRunning = false;
+            GameOver?.Invoke(_world.Score);
+        }
 
         InvalidateVisual(); // Ask Avalonia to call Render() again
     }
@@ -124,10 +145,9 @@ public class GameCanvas : Control
             DrawTorpedoes(context);
             DrawSubmarine(context);
             DrawExplosions(context);
-            DrawHud(context);
 
-            if (_world.IsGameOver)
-                DrawGameOver(context);
+            if (IsRunning)
+                DrawHud(context);
         }
     }
 
@@ -174,7 +194,8 @@ public class GameCanvas : Control
 
     private void DrawSubmarine(DrawingContext context)
     {
-        if (_world.IsGameOver) return;
+        // Hidden in menus and after game over
+        if (!IsRunning) return;
 
         // Blink while invulnerable: skip every other 0.1 second
         if (_world.IsInvulnerable && (int)(_world.InvulnerableTimeLeft * 10) % 2 == 0)
@@ -232,7 +253,7 @@ public class GameCanvas : Control
         }
     }
 
-        private void DrawHud(DrawingContext context)
+    private void DrawHud(DrawingContext context)
     {
         DrawAmmo(context);
         DrawText(context, $"SCORE {_world.Score:D6}", 10, 8, 14);
@@ -272,16 +293,6 @@ public class GameCanvas : Control
             context.FillRectangle(AmmoEmptyBrush, new Rect(startX, barY, totalWidth, 3));
             context.FillRectangle(AmmoFullBrush, new Rect(startX, barY, totalWidth * _world.ReloadProgress, 3));
         }
-    }
-
-    private void DrawGameOver(DrawingContext context)
-    {
-        context.FillRectangle(GameOverBrush, new Rect(0, 0, GameWorld.Width, GameWorld.Height));
-
-        double centerX = GameWorld.Width / 2;
-        DrawText(context, "GAME OVER", centerX, 140, 36, TextAlignment.Center);
-        DrawText(context, $"SCORE {_world.Score}", centerX, 190, 18, TextAlignment.Center);
-        DrawText(context, "Press R to restart", centerX, 225, 12, TextAlignment.Center);
     }
 
     private static FormattedText MakeText(string text, double size, IBrush brush) =>
