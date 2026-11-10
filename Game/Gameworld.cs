@@ -23,6 +23,13 @@ public class GameWorld
     public const int StartLives = 3;
     public const double InvulnerableTime = 2.0; // Seconds of safety after being hit
 
+    // ===== Level rules: tweak these =====
+    public const int PointsPerLevel = 1000;        // Score needed for each new level
+    public const double DifficultyPerLevel = 0.2;  // +20% more ships and bombs per level
+    public const double MaxDifficulty = 3.0;       // Never more than 3x harder than level 1
+    public const double LevelUpBannerTime = 2.0;   // Seconds the "LEVEL X" text is shown
+    // ====================================
+
     public Submarine Player { get; } = new() { X = 80, Y = 220 };
     public List<Torpedo> Torpedoes { get; } = new();
     public List<Ship> Ships { get; } = new();
@@ -32,6 +39,14 @@ public class GameWorld
     public int Score { get; private set; }
     public int Lives { get; private set; } = StartLives;
     public bool IsGameOver => Lives <= 0;
+
+    // Level is calculated from score, so it can never get out of sync
+    public int Level => 1 + Score / PointsPerLevel;
+
+    // 1.0 at level 1, 1.2 at level 2, 1.4 at level 3 ... capped at MaxDifficulty
+    public double Difficulty => Math.Min(MaxDifficulty, 1 + (Level - 1) * DifficultyPerLevel);
+
+    public double LevelUpTimeLeft { get; private set; }
 
     public int Ammo { get; private set; } = MaxTorpedoes;
     public bool IsReloading => Ammo == 0;
@@ -55,6 +70,8 @@ public class GameWorld
             UpdateExplosions(dt);
             return;
         }
+
+        LevelUpTimeLeft = Math.Max(0, LevelUpTimeLeft - dt);
 
         UpdatePlayer(dt, input);
         UpdateShips(dt);
@@ -101,14 +118,14 @@ public class GameWorld
 
     private void UpdateShips(double dt)
     {
-        // Spawn a new ship every 1.5 to 3.5 seconds
+        // Spawn a new ship every 1.5 to 3.5 seconds, faster on higher levels
         _spawnTimer -= dt;
         if (_spawnTimer <= 0)
         {
             var type = (ShipType)_rng.Next(3);
             bool movingRight = _rng.Next(2) == 0;
             Ships.Add(new Ship(type, movingRight));
-            _spawnTimer = 1.5 + _rng.NextDouble() * 2;
+            _spawnTimer = (1.5 + _rng.NextDouble() * 2) / Difficulty;
         }
 
         foreach (var ship in Ships)
@@ -131,11 +148,13 @@ public class GameWorld
         DepthCharges.Add(new DepthCharge
         {
             X = ship.X + ship.Width / 2 - DepthCharge.Size / 2,
-            Y = WaterLine
+            Y = WaterLine,
+            // Sink speed grows at half the rate of difficulty, so it stays dodgeable
+            SinkSpeed = DepthCharge.BaseSinkSpeed * (1 + (Difficulty - 1) * 0.5)
         });
 
-        // Some randomness so drops don't feel robotic (70% to 130% of the interval)
-        ship.DropTimer = ship.DropInterval * (0.7 + _rng.NextDouble() * 0.6);
+        // Some randomness so drops don't feel robotic, and more often on higher levels
+        ship.DropTimer = ship.DropInterval * (0.7 + _rng.NextDouble() * 0.6) / Difficulty;
     }
 
     private void UpdateTorpedoes(double dt)
@@ -206,8 +225,13 @@ public class GameWorld
             // Battleships survive the first hit
             if (hit.TakeHit())
             {
+                int levelBefore = Level;
                 Score += hit.Points;
                 Ships.Remove(hit);
+
+                // Show the banner when the score pushes us to a new level
+                if (Level > levelBefore)
+                    LevelUpTimeLeft = LevelUpBannerTime;
             }
         }
     }

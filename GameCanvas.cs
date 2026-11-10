@@ -232,11 +232,16 @@ public class GameCanvas : Control
         }
     }
 
-    private void DrawHud(DrawingContext context)
+        private void DrawHud(DrawingContext context)
     {
         DrawAmmo(context);
         DrawText(context, $"SCORE {_world.Score:D6}", 10, 8, 14);
+        DrawText(context, $"LEVEL {_world.Level}", 10, 26, 12);
         DrawText(context, $"LIVES {_world.Lives}", GameWorld.Width - 10, 8, 14, TextAlignment.Right);
+
+        // Big banner in the middle for a moment after leveling up
+        if (_world.LevelUpTimeLeft > 0)
+            DrawText(context, $"LEVEL {_world.Level}", GameWorld.Width / 2, 150, 28, TextAlignment.Center);
     }
 
     // Torpedo ammo at the top center, with a reload bar when empty
